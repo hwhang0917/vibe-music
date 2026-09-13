@@ -108,6 +108,7 @@ func NewHandler(dist fs.FS, p *player.Player, guests *Guests, top TopFunc, onErr
 				r.Post("/queue/{id}/vote", s.vote)
 				r.Delete("/queue/{id}", s.remove)
 				r.Post("/skip", s.skip)
+				r.Delete("/skip", s.unskip)
 			})
 		})
 	})
@@ -208,10 +209,11 @@ func (s *Server) state(w http.ResponseWriter, r *http.Request) {
 // stateFor marks which queue items belong to this guest. The queue slice is
 // copied so subscribers never share a mutated snapshot.
 func (s *Server) stateFor(g player.Guest) player.State {
-	return markMine(s.player.State(), g.ID)
+	return markMine(s.player.State(), g.ID, s.player.HasSkipVote(g.ID))
 }
 
-func markMine(st player.State, guestID string) player.State {
+func markMine(st player.State, guestID string, votedSkip bool) player.State {
+	st.MySkipVote = votedSkip
 	q := make([]player.QueueItem, len(st.Queue))
 	for i, it := range st.Queue {
 		it.Mine = it.RequestedBy == guestID
@@ -258,7 +260,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, ": ping\n\n")
 			flusher.Flush()
 		case st := <-ch:
-			data, _ := json.Marshal(markMine(st, g.ID))
+			data, _ := json.Marshal(markMine(st, g.ID, s.player.HasSkipVote(g.ID)))
 			fmt.Fprintf(w, "event: state\ndata: %s\n\n", data)
 			flusher.Flush()
 		}
@@ -390,6 +392,14 @@ func (s *Server) skip(w http.ResponseWriter, r *http.Request) {
 	skipped := s.player.VoteSkip(r.Context(), g.ID)
 	slog.Info("guest", "action", "skip_vote", "guest", g.ID, "name", g.Name, "skipped", skipped)
 	writeJSON(w, http.StatusOK, map[string]any{"skipped": skipped, "state": s.player.State()})
+}
+
+// unskip withdraws the guest's skip vote during the grace period.
+func (s *Server) unskip(w http.ResponseWriter, r *http.Request) {
+	g := guestFrom(r)
+	s.player.UnvoteSkip(g.ID)
+	slog.Info("guest", "action", "skip_unvote", "guest", g.ID, "name", g.Name)
+	writeJSON(w, http.StatusOK, map[string]any{"state": s.player.State()})
 }
 
 func (s *Server) artwork(w http.ResponseWriter, r *http.Request) {

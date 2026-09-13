@@ -14,7 +14,7 @@ import type { State } from './types'
 import { fmtDuration, NS_PER_MS } from './types'
 
 const props = defineProps<{ state: State | null }>()
-const emit = defineEmits<{ skip: [] }>()
+const emit = defineEmits<{ skip: []; cancelSkip: [] }>()
 
 // Position interpolates from the last frame; the server only pushes on change.
 const now = ref(Date.now())
@@ -28,6 +28,8 @@ const positionMs = computed(() => {
   if (!np.value) return 0
   const base = np.value.position / NS_PER_MS
   const live = np.value.playing ? base + (now.value - new Date(np.value.at).getTime()) : base
+// Seconds left in a passed skip vote's grace period; the 500ms tick above drives it.
+const skipLeft = computed(() => props.state?.skipAt ? Math.max(0, Math.ceil((new Date(props.state.skipAt).getTime() - now.value) / 1000)) : 0)
   const max = np.value.track.duration / NS_PER_MS
   return max ? Math.min(live, max) : live
 })
@@ -68,7 +70,11 @@ const pct = computed(() => {
                 <span>{{ fmtDuration(np.track.duration) }}</span>
               </div>
             </div>
-            <Button variant="outline" class="w-full" @click="emit('skip')">
+            <div v-if="state?.skipAt" class="flex items-center gap-2" aria-live="polite">
+              <p class="flex-1 text-center text-sm font-medium">{{ t('now.skipping', { s: skipLeft }) }}</p>
+              <Button v-if="state?.mySkipVote" variant="outline" @click="emit('cancelSkip')">{{ t('now.cancelSkip') }}</Button>
+            </div>
+            <Button v-else variant="outline" class="w-full" @click="emit('skip')">
               <SkipForward />
               {{ t('now.skip', { v: state?.skipVotes ?? 0, t: state?.skipThreshold ?? 1 }) }}
             </Button>

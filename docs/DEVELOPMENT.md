@@ -23,7 +23,8 @@ the [README](../README.md).
 - **Core owns the queue** (`internal/player`). Sorted by admin rank, then
   votes, then request time. The same song can be requested more than once.
   Skip fires when a configurable share of connected guests votes (default
-  50%). The admin can always skip, reorder, remove, seek. Track end is
+  50%), after a `SkipGrace` (3 s) countdown during which voters can withdraw.
+  The admin can always skip, reorder, remove, seek. Track end is
   detected by polling each source's `Status` once a second.
 - **Enabled sources, exclusive Spotify.** Several sources can be on at once;
   the player switches source track by track. Spotify's developer policy
@@ -137,7 +138,7 @@ web/                       guest UI (Vue + Vite + Tailwind + shadcn-vue + vue-ro
 | GET | `/api/artist?source&id`, `/api/album?source&id` | browse pages (`source.Browser`) |
 | GET | `/api/folder?source&id` | one level of the folder tree, empty id = top (`source.Explorer`) |
 | GET | `/api/artwork/{source}/{id}` | local artwork |
-| POST | `/api/queue`, `/api/queue/{id}/vote`, `/api/skip`; DELETE `/api/queue/{id}` | need a name |
+| POST | `/api/queue`, `/api/queue/{id}/vote`, `/api/skip`; DELETE `/api/queue/{id}`, `/api/skip` | need a name; DELETE `/api/skip` withdraws a vote during the grace period |
 
 Errors are `{"error": "<code>"}`; both UIs translate codes in `i18n.ts`
 (`err.<code>`), with `code: detail` carrying a provider's own message.

@@ -197,11 +197,24 @@ func TestGuestFlow(t *testing.T) {
 		t.Fatalf("vote unknown: %d", res.StatusCode)
 	}
 
-	// skip: no guests connected -> threshold 1
+	// skip: no guests connected -> threshold 1; a passed vote waits SkipGrace
+	// and can be withdrawn meanwhile
+	player.SkipGrace = 20 * time.Millisecond
+	defer func() { player.SkipGrace = 3 * time.Second }()
 	res, out := lee.do("POST", "/api/skip", "")
-	if res.StatusCode != 200 || out["skipped"] != true {
+	if res.StatusCode != 200 || out["skipped"] != true || out["state"].(map[string]any)["skipAt"] == nil {
 		t.Fatalf("skip: %d %v", res.StatusCode, out)
 	}
+	res, out = lee.do("DELETE", "/api/skip", "")
+	if res.StatusCode != 200 || out["state"].(map[string]any)["skipAt"] != nil {
+		t.Fatalf("unskip: %d %v", res.StatusCode, out)
+	}
+	time.Sleep(3 * player.SkipGrace)
+	if got := f.Played(); len(got) != 1 {
+		t.Fatalf("withdrawn vote must not skip: %v", got)
+	}
+	res, _ = lee.do("POST", "/api/skip", "")
+	time.Sleep(3 * player.SkipGrace)
 	if got := f.Played(); len(got) != 2 || got[1] != "b" {
 		t.Fatalf("played: %v", got)
 	}

@@ -8,7 +8,7 @@ import Artwork from './Artwork.vue'
 import NowPlaying from './NowPlaying.vue'
 import Wave from './Wave.vue'
 import { t } from './i18n'
-import { state, voteSkip } from './state'
+import { cancelSkip, state, voteSkip } from './state'
 
 const folded = useStorage('vibe-music.npbar.folded', true)
 </script>
@@ -29,7 +29,7 @@ const folded = useStorage('vibe-music.npbar.folded', true)
         <div class="flex justify-end">
           <Button variant="ghost" size="sm" :aria-label="t('now.collapse')" @click="folded = true"><ChevronDown />{{ t('now.collapse') }}</Button>
         </div>
-        <NowPlaying :state="state" @skip="voteSkip" />
+        <NowPlaying :state="state" @skip="voteSkip" @cancel-skip="cancelSkip" />
       </div>
     </div>
   </div>

@@ -79,6 +79,12 @@ type SourceInfo struct {
 // forbids mixing its content with other audio).
 var ExclusiveSources = map[string]bool{"spotify": true}
 
+// SkipGrace is how long a passed skip vote waits before the track changes, so
+// guests can withdraw a vote. A var so tests can shorten it.
+const defaultSkipGrace = 3 * time.Second
+
+var SkipGrace = defaultSkipGrace
+
 // State is the snapshot guests and the admin window render.
 type State struct {
 	Sources       []SourceInfo `json:"sources"` // every source with its enabled flag
@@ -86,6 +92,8 @@ type State struct {
 	Queue         []QueueItem  `json:"queue"`
 	SkipVotes     int          `json:"skipVotes"`
 	SkipThreshold int          `json:"skipThreshold"`
+	SkipAt        string       `json:"skipAt,omitempty"`     // RFC3339 deadline while a passed skip vote waits
+	MySkipVote    bool         `json:"mySkipVote,omitempty"` // set per guest by the server
 	Volume        int          `json:"volume"`
 	Guests        int          `json:"guests"`
 	Event         *Event       `json:"event,omitempty"`
@@ -107,6 +115,8 @@ type Player struct {
 	now       source.Playback
 	requester string // display name of who requested the current track
 	skipVotes map[string]struct{}
+	skipAt    time.Time   // deadline of a passed skip vote; zero when none pending
+	skipTimer *time.Timer // fires skipNow at skipAt
 	guests    int
 	volume    int
 	lastPlay  time.Time
@@ -293,7 +303,7 @@ func (p *Player) SetEnabled(ctx context.Context, id string, on bool) error {
 		p.current = nil
 		p.now = source.Playback{}
 		p.requester = ""
-		p.skipVotes = map[string]struct{}{}
+		p.resetSkip()
 		p.lastPlay = time.Time{} // nothing is loading: the next tick may start the new head at once
 	}
 	if err := src.Deactivate(ctx); err != nil {
@@ -472,12 +482,60 @@ func (p *Player) VoteSkip(ctx context.Context, guestID string) bool {
 		return false
 	}
 	p.skipVotes[guestID] = struct{}{}
-	skipped := len(p.skipVotes) >= p.skipThreshold()
-	if skipped {
-		p.advance(ctx)
+	passed := len(p.skipVotes) >= p.skipThreshold()
+	if passed && p.skipTimer == nil {
+		p.skipAt = time.Now().Add(SkipGrace)
+		p.skipTimer = time.AfterFunc(SkipGrace, p.skipNow)
 	}
 	p.broadcastIfChanged()
-	return skipped
+	return passed
+}
+
+// skipNow ends the grace period; votes may have been withdrawn meanwhile.
+func (p *Player) skipNow() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.skipTimer == nil {
+		return // cancelled
+	}
+	p.skipTimer, p.skipAt = nil, time.Time{}
+	if len(p.skipVotes) >= p.skipThreshold() {
+		p.advance(context.Background())
+	}
+	p.broadcastIfChanged()
+}
+
+// UnvoteSkip withdraws a guest's skip vote; a pending skip is cancelled once
+// the count drops below the threshold.
+func (p *Player) UnvoteSkip(guestID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.skipVotes, guestID)
+	p.cancelSkipIfShort()
+	p.broadcastIfChanged()
+}
+
+func (p *Player) HasSkipVote(guestID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	_, ok := p.skipVotes[guestID]
+	return ok
+}
+
+func (p *Player) cancelSkipIfShort() {
+	if p.skipTimer != nil && len(p.skipVotes) < p.skipThreshold() {
+		p.skipTimer.Stop()
+		p.skipTimer, p.skipAt = nil, time.Time{}
+	}
+}
+
+// resetSkip forgets votes and any pending skip when the track changes.
+func (p *Player) resetSkip() {
+	p.skipVotes = map[string]struct{}{}
+	if p.skipTimer != nil {
+		p.skipTimer.Stop()
+	}
+	p.skipTimer, p.skipAt = nil, time.Time{}
 }
 
 // Move places a queued item at index (0 = next up). All current items become
@@ -585,6 +643,7 @@ func (p *Player) RemoveGuest(guestID string) {
 		delete(it.votes, guestID)
 		if it.RequestedBy != guestID {
 			kept = append(kept, it)
+	p.cancelSkipIfShort()
 		}
 	}
 	p.queue = kept
@@ -739,7 +798,7 @@ func (p *Player) applyStatus(st source.Playback) {
 // advance plays the queue head (switching source if the head lives elsewhere)
 // or stops when the queue is empty.
 func (p *Player) advance(ctx context.Context) {
-	p.skipVotes = map[string]struct{}{}
+	p.resetSkip()
 	if len(p.queue) == 0 {
 		if p.current != nil {
 			_ = p.current.Stop(ctx)
@@ -813,6 +872,9 @@ func (p *Player) snapshot() State {
 		c := *it
 		c.Votes = len(it.votes)
 		s.Queue = append(s.Queue, c)
+	if !p.skipAt.IsZero() {
+		s.SkipAt = p.skipAt.UTC().Format(time.RFC3339Nano)
+	}
 	}
 	return s
 }
@@ -821,7 +883,7 @@ func (p *Player) snapshot() State {
 // tick; clients interpolate from Position+At of the last frame. Duration is
 // included because local files only learn it once decoding starts.
 func (s State) signature() string {
-	sig := fmt.Sprintf("%v|%d|%d|%d|%d|", s.Sources, s.SkipVotes, s.SkipThreshold, s.Volume, s.Guests)
+	sig := fmt.Sprintf("%v|%d|%d|%s|%d|%d|", s.Sources, s.SkipVotes, s.SkipThreshold, s.SkipAt, s.Volume, s.Guests)
 	if s.NowPlaying != nil {
 		sig += fmt.Sprintf("%s|%v|%d|", s.NowPlaying.Track.ID, s.NowPlaying.Playing, s.NowPlaying.Track.Duration)
 	}

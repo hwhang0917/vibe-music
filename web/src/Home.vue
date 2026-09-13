@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import NowPlaying from './NowPlaying.vue'
 import TrackRow from './TrackRow.vue'
 import { t } from './i18n'
-import { remove, state, vote, voteSkip } from './state'
+import { cancelSkip, remove, state, vote, voteSkip } from './state'
 </script>
 
 <template>
-  <NowPlaying :state="state" @skip="voteSkip" />
+  <NowPlaying :state="state" @skip="voteSkip" @cancel-skip="cancelSkip" />
 
   <Button size="lg" class="w-full" as-child>
     <RouterLink to="/search"><Search />{{ t('home.request') }}</RouterLink>

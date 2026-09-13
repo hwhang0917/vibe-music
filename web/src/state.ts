@@ -189,6 +189,7 @@ export const submit = (tr: Track) => act(async () => {
 export const vote = (id: string) => act(async () => { await api('POST', `/api/queue/${id}/vote`); return t('toast.voted') })
 export const remove = (id: string) => act(async () => { await api('DELETE', `/api/queue/${id}`); return t('toast.removed') })
 export const voteSkip = () => act(async () => { await api('POST', '/api/skip'); return t('toast.skipVoted') })
+export const cancelSkip = () => act(async () => { await api('DELETE', '/api/skip'); return t('toast.skipCancelled') })
 
 export const isSpotify = computed(() => isEnabled('spotify'))
 export const isYouTube = computed(() => isEnabled('youtube'))

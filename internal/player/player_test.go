@@ -117,6 +117,8 @@ func TestAutoAdvanceOnEnded(t *testing.T) {
 }
 
 func TestSkipThreshold(t *testing.T) {
+	SkipGrace = 20 * time.Millisecond
+	defer func() { SkipGrace = defaultSkipGrace }()
 	p, f := setup(t)
 	ctx := context.Background()
 	_ = p.Request(ctx, a, g1)
@@ -135,6 +137,7 @@ func TestSkipThreshold(t *testing.T) {
 	if !p.VoteSkip(ctx, g2.ID) {
 		t.Fatal("second guest should skip")
 	}
+	time.Sleep(3 * SkipGrace) // the skip lands after the grace period
 	eq(t, f.Played(), []string{"a", "b"})
 	if p.State().SkipVotes != 0 {
 		t.Fatal("skip votes should reset on advance")
@@ -147,6 +150,7 @@ func TestSkipThreshold(t *testing.T) {
 	if !p.VoteSkip(ctx, g3.ID) {
 		t.Fatal("single vote should skip with no guests connected")
 	}
+	time.Sleep(3 * SkipGrace)
 	if p.VoteSkip(ctx, g3.ID) {
 		t.Fatal("nothing playing: no skip")
 	}
@@ -510,5 +514,36 @@ func TestStatusKeepsQueuedMetadata(t *testing.T) {
 	np := p.State().NowPlaying
 	if np == nil || np.Track.Title != "A" || np.Track.ArtworkURL != "http://art/a.jpg" {
 		t.Fatalf("metadata lost: %+v", np)
+	}
+}
+
+// A passed vote waits SkipGrace so a guest can withdraw it; the skip then
+// happens only if the votes still reach the threshold.
+func TestSkipGraceCancellable(t *testing.T) {
+	SkipGrace = 50 * time.Millisecond
+	defer func() { SkipGrace = defaultSkipGrace }()
+	p, f := setup(t)
+	ctx := context.Background()
+	_ = p.Request(ctx, a, g1)
+	_ = p.Request(ctx, b, g1)
+	p.SetConnectedGuests(0) // threshold 1
+	if !p.VoteSkip(ctx, g1.ID) {
+		t.Fatal("vote should pass")
+	}
+	if p.State().SkipAt == "" || !p.HasSkipVote(g1.ID) {
+		t.Fatal("passed vote should start the grace period")
+	}
+	eq(t, f.Played(), []string{"a"})
+	p.UnvoteSkip(g1.ID)
+	if p.State().SkipAt != "" {
+		t.Fatal("withdrawn vote should cancel the pending skip")
+	}
+	time.Sleep(3 * SkipGrace)
+	eq(t, f.Played(), []string{"a"})
+	_ = p.VoteSkip(ctx, g1.ID)
+	time.Sleep(3 * SkipGrace)
+	eq(t, f.Played(), []string{"a", "b"})
+	if p.State().SkipAt != "" || p.State().SkipVotes != 0 {
+		t.Fatal("grace and votes should clear after the skip")
 	}
 }

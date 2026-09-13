@@ -68,6 +68,8 @@ export interface State {
   skipThreshold: number
   volume: number
   guests: number
+  skipAt?: string // RFC3339 deadline while a passed skip vote waits; votes can still be withdrawn
+  mySkipVote?: boolean
   event?: { type: 'seek' | 'queue_moved' | 'queue_removed' | 'skipped' | 'source_disabled' | 'history_reset'; title?: string; position?: number }
 }
 
