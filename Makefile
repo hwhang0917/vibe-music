@@ -8,8 +8,11 @@ BIN   := build/bin
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-install: ## Install all dependencies (Go modules, Wails CLI, both frontends)
-	go mod download
+# Go modules are vendored (vendor/, committed): go build/test/vet use
+# -mod=vendor on their own. After changing go.mod, run `make install` (or
+# `go mod vendor`) and commit the vendor changes.
+install: ## Install all dependencies (vendor Go modules, Wails CLI, both frontends)
+	go mod vendor
 	go install github.com/wailsapp/wails/v2/cmd/wails@latest
 	npm --prefix frontend install
 	npm --prefix web install
