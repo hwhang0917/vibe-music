@@ -204,7 +204,9 @@ export function startStream() {
     announce(s.event)
     if (changed) loadTop()
   })
-  es.onopen = () => { connected.value = true }
+  // (Re)connecting also reloads the list: a reset announced while a phone's
+  // stream was suspended in the background is a one-shot event, so it is gone.
+  es.onopen = () => { connected.value = true; loadTop() }
   es.onerror = () => {
     connected.value = false
     // A kick just reconnects; a block or a dead server shows up on the probe.
