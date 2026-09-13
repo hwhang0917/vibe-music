@@ -1,0 +1,2 @@
+# vendored files are copied verbatim by go mod vendor; never normalize their line endings
+vendor/** -text
