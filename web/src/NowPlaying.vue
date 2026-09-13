@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { SkipForward } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,6 +10,7 @@ import SourceIcon from './SourceIcon.vue'
 import Wave from './Wave.vue'
 import SourceLink from './SourceLink.vue'
 import { t } from './i18n'
+import { offline } from './state'
 import type { State } from './types'
 import { fmtDuration, NS_PER_MS } from './types'
 
@@ -21,15 +22,19 @@ const now = ref(Date.now())
 let tick: number | undefined
 onMounted(() => { tick = window.setInterval(() => { now.value = Date.now() }, 500) })
 onUnmounted(() => window.clearInterval(tick))
+// Offline, the clock stops where it was: the host may have paused or moved on,
+// and the next frame after reconnecting resyncs position anyway.
+const frozenAt = ref<number | null>(null)
+watch(offline, (off) => { frozenAt.value = off ? Date.now() : null })
 
 const np = computed(() => props.state?.nowPlaying ?? null)
+// Seconds left in a passed skip vote's grace period; the 500ms tick above drives it.
+const skipLeft = computed(() => props.state?.skipAt ? Math.max(0, Math.ceil((new Date(props.state.skipAt).getTime() - now.value) / 1000)) : 0)
 const sourceName = computed(() => props.state?.sources.find((s) => s.id === np.value?.track.source)?.name ?? np.value?.track.source ?? '')
 const positionMs = computed(() => {
   if (!np.value) return 0
   const base = np.value.position / NS_PER_MS
-  const live = np.value.playing ? base + (now.value - new Date(np.value.at).getTime()) : base
-// Seconds left in a passed skip vote's grace period; the 500ms tick above drives it.
-const skipLeft = computed(() => props.state?.skipAt ? Math.max(0, Math.ceil((new Date(props.state.skipAt).getTime() - now.value) / 1000)) : 0)
+  const live = np.value.playing ? base + ((frozenAt.value ?? now.value) - new Date(np.value.at).getTime()) : base
   const max = np.value.track.duration / NS_PER_MS
   return max ? Math.min(live, max) : live
 })
