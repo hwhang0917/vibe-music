@@ -32,7 +32,7 @@ import Wave from './Wave.vue'
 import { toast } from 'vue-sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { locale, setLocale, t, tError } from './i18n'
-import type { Config, Device, GuestInfo, Invitation, ServerStatus, SourceStatus, State } from './types'
+import type { Config, Device, GuestInfo, Invitation, ServerStatus, SourceStatus, State, Track } from './types'
 import { fmtDuration, NS_PER_SEC } from './types'
 
 // Wails events push changes; the poll is a safety net so the guest list and
@@ -343,7 +343,7 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
             <div class="flex flex-col" :class="playingSource === 'youtube' ? '' : 'sm:flex-row'">
               <!-- mounted whenever YouTube is on so it is ready before its first track; visible only while one plays -->
               <YouTubePlayer v-if="youtubeEnabled" v-show="playingSource === 'youtube'" :blocked-label="t('youtube.blocked')" />
-              <Artwork v-if="playingSource !== 'youtube'" :src="np?.track.artworkUrl?.startsWith('http') ? np.track.artworkUrl : undefined" class="aspect-square w-full sm:w-56 rounded-none" />
+              <Artwork v-if="playingSource !== 'youtube'" :src="artSrc(np?.track)" class="aspect-square w-full sm:w-56 rounded-none" />
               <div class="flex flex-1 flex-col justify-between gap-4 px-6 py-5">
                 <div class="space-y-1">
                   <div class="flex items-center justify-between gap-3">
@@ -404,7 +404,7 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
               <ul class="divide-y">
                 <li v-for="(it, i) in state.queue" :key="it.id" class="flex items-center gap-3 px-6 py-2.5 text-sm">
                   <span class="w-5 text-right font-mono text-xs text-muted-foreground">{{ i + 1 }}</span>
-                  <Artwork :src="it.track.artworkUrl?.startsWith('http') ? it.track.artworkUrl : undefined" class="size-10" />
+                  <Artwork :src="artSrc(it.track)" class="size-10" />
                   <div class="min-w-0 flex-1">
                     <p class="truncate font-medium">{{ it.track.title }}</p>
                     <p class="flex items-center gap-1 truncate text-xs text-muted-foreground"><SourceIcon :source="it.track.source" class="size-3" /><span class="truncate">{{ it.track.artist || '—' }} · {{ it.requestedBy }}</span></p>
@@ -454,9 +454,9 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
                   <div class="flex gap-2">
                     <p class="min-w-0 flex-1 select-all truncate rounded-md border bg-muted px-3 py-2 font-mono text-sm">{{ server.url }}</p>
                     <Button variant="outline" :disabled="!!busy" :aria-label="t('server.copyUrl')" @click="copyText(server.url)"><Copy />{{ t('server.copyUrl') }}</Button>
+                    <Button variant="outline" :disabled="!!busy" :aria-label="t('qr.show')" @click="showQr(t('server.joinUrl'), server.url)"><QrCode />{{ t('qr.show') }}</Button>
                   </div>
                 </div>
-                    <Button variant="outline" :disabled="!!busy" :aria-label="t('qr.show')" @click="showQr(t('server.joinUrl'), server.url)"><QrCode />{{ t('qr.show') }}</Button>
                 <div class="space-y-2">
                   <div class="flex justify-between">
                     <Label>{{ t('server.skipRatio') }}</Label>
@@ -514,9 +514,9 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
                       </p>
                     </div>
                     <Button v-if="inv.code && !inv.revoked && !inv.uses && !isExpired(inv)" variant="outline" size="sm" :disabled="!!busy" @click="copyLink(inv.code)"><Copy />{{ t('invite.copy') }}</Button>
+                    <Button v-if="inv.code && !inv.revoked && !inv.uses && !isExpired(inv)" variant="outline" size="sm" :disabled="!!busy" @click="showQr(t('invite.title'), joinUrl(inv.code))"><QrCode />{{ t('qr.show') }}</Button>
                     <Button v-if="!inv.revoked && !inv.uses && !isExpired(inv)" variant="ghost" size="sm" class="text-destructive" :disabled="!!busy" @click="revokeInvitation(inv.id)">{{ t('invite.revoke') }}</Button>
                   </li>
-                    <Button v-if="inv.code && !inv.revoked && !inv.uses && !isExpired(inv)" variant="outline" size="sm" :disabled="!!busy" @click="showQr(t('invite.title'), joinUrl(inv.code))"><QrCode />{{ t('qr.show') }}</Button>
                 </ul>
               </CardContent>
             </Card>

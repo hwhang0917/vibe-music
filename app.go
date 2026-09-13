@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -641,6 +642,22 @@ func (a *App) YouTubeTest(region string) (string, error) {
 
 // YouTubeReport receives the embedded player's state from the admin page.
 func (a *App) YouTubeReport(r youtube.Report) { a.youtube.Report(r) }
+
+// Artwork returns a track's cover as a data URL for the admin window. Guests
+// fetch the same bytes from /api/artwork, but that server may not be running
+// while the host is already playing.
+func (a *App) Artwork(sourceID, trackID string) (string, error) {
+	src, ok := a.player.Source(sourceID)
+	ap, isAP := src.(source.ArtworkProvider)
+	if !ok || !isAP {
+		return "", nil
+	}
+	data, mime, err := ap.Artwork(a.ctx, trackID)
+	if err != nil {
+		return "", err
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
 
 // YouTubePlayerURL is the loopback page the admin window frames for playback.
 func (a *App) YouTubePlayerURL() string { return a.ytURL }

@@ -31,6 +31,7 @@ export function CreateInvitation(arg1) { return app()['CreateInvitation'](arg1);
 export function Invitations() { return app()['Invitations'](); }
 export function RevokeInvitation(arg1) { return app()['RevokeInvitation'](arg1); }
 export function YouTubeReport(arg1) { return app()['YouTubeReport'](arg1); }
+export function Artwork(arg1, arg2) { return app()['Artwork'](arg1, arg2); }
 export function YouTubePlayerURL() { return app()['YouTubePlayerURL'](); }
 export function SetYouTubeAPIKey(arg1) { return app()['SetYouTubeAPIKey'](arg1); }
 export function SetSourceEnabled(arg1, arg2) { return app()['SetSourceEnabled'](arg1, arg2); }
