@@ -26,6 +26,7 @@ export const uiDeps: Attribution[] = [
   { name: 'Reka UI', license: 'MIT', url: 'https://reka-ui.com' },
   { name: 'Lucide', license: 'ISC', url: 'https://lucide.dev' },
   { name: 'vue-sonner', license: 'MIT', url: 'https://github.com/xiaoluoboding/vue-sonner' },
+  { name: 'node-qrcode', license: 'MIT', url: 'https://github.com/soldair/node-qrcode' },
   { name: 'VueUse', license: 'MIT', url: 'https://vueuse.org' },
   { name: 'class-variance-authority', license: 'Apache-2.0', url: 'https://cva.style' },
   { name: 'clsx', license: 'MIT', url: 'https://github.com/lukeed/clsx' },

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { ArrowDown, ArrowUp, Ban, Check, ChevronUp, Copy, ExternalLink, FolderOpen, FolderPlus, Minus, Pause, Play, Power, RefreshCw, RotateCw, SkipForward, Ticket, Trash2, Unplug, Users, Volume2, X } from '@lucide/vue'
+import { ArrowDown, ArrowUp, Ban, Check, ChevronUp, Copy, ExternalLink, FolderOpen, FolderPlus, Minus, Pause, Play, Power, QrCode, RefreshCw, RotateCw, SkipForward, Ticket, Trash2, Unplug, Users, Volume2, X } from '@lucide/vue'
+import QRCode from 'qrcode'
 import * as api from '../wailsjs/go/main/App'
 import { EventsOn, WindowReload } from '../wailsjs/runtime/runtime'
 import { Badge } from '@/components/ui/badge'
@@ -208,6 +209,19 @@ const copyPath = (text: string) => run('copy', async () => { await navigator.cli
 const info = ref<{ version: string; dataDir: string; dbPath: string; logPath: string } | null>(null)
 const infoRows = computed(() => info.value ? [['info.dataDir', info.value.dataDir], ['info.db', info.value.dbPath], ['info.log', info.value.logPath]] as const : [])
 const copyLink = (code: string) => copyText(joinUrl(code))
+// Local covers are only served by the guest HTTP server, which may be off; ask Go for a data URL.
+const art = ref<Record<string, string>>({}) // ponytail: grows per track seen; bounded by the queue in practice
+function artSrc(tr?: Track): string | undefined {
+  if (!tr?.artworkUrl) return undefined
+  if (tr.artworkUrl.startsWith('http')) return tr.artworkUrl
+  const key = `${tr.source}/${tr.id}`
+  if (!(key in art.value)) { art.value[key] = ''; api.Artwork(tr.source, tr.id).then((u) => { art.value[key] = u }).catch(() => {}) }
+  return art.value[key] || undefined
+}
+// QR dialog: phones on the Wi-Fi scan the join URL instead of typing it
+const QR_PX = 320
+const qr = ref<{ title: string; url: string; png: string } | null>(null)
+const showQr = async (title: string, url: string) => { qr.value = { title, url, png: await QRCode.toDataURL(url, { width: QR_PX, margin: 1 }) } }
 const isExpired = (inv: Invitation) => new Date(inv.expiresAt).getTime() < Date.now()
 const fmtWhen = (iso: string) => new Date(iso).toLocaleString(locale.value === 'ko' ? 'ko-KR' : 'en-US', { dateStyle: 'short', timeStyle: 'short' })
 const block = (g: GuestInfo) => run('block', async () => {
@@ -267,6 +281,16 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
   <TooltipProvider>
     <Toaster position="bottom-right" rich-colors close-button />
     <!-- shared confirmation; kept outside the tabs because an inactive tab's content is unmounted -->
+    <Dialog :open="!!qr" @update:open="(o: boolean) => { if (!o) qr = null }">
+      <DialogContent class="w-[calc(100vw-2rem)] sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{{ qr?.title }}</DialogTitle>
+          <DialogDescription>{{ t('qr.hint') }}</DialogDescription>
+        </DialogHeader>
+        <img v-if="qr" :src="qr.png" :alt="qr.url" class="mx-auto aspect-square w-full max-w-[320px] rounded-md bg-white" />
+        <p class="select-all break-all text-center font-mono text-xs text-muted-foreground">{{ qr?.url }}</p>
+      </DialogContent>
+    </Dialog>
     <AlertDialog :open="!!confirm" @update:open="(o: boolean) => { if (!o) confirm = null }">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -430,6 +454,7 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
                     <Button variant="outline" :disabled="!!busy" :aria-label="t('server.copyUrl')" @click="copyText(server.url)"><Copy />{{ t('server.copyUrl') }}</Button>
                   </div>
                 </div>
+                    <Button variant="outline" :disabled="!!busy" :aria-label="t('qr.show')" @click="showQr(t('server.joinUrl'), server.url)"><QrCode />{{ t('qr.show') }}</Button>
                 <div class="space-y-2">
                   <div class="flex justify-between">
                     <Label>{{ t('server.skipRatio') }}</Label>
@@ -489,6 +514,7 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
                     <Button v-if="inv.code && !inv.revoked && !inv.uses && !isExpired(inv)" variant="outline" size="sm" :disabled="!!busy" @click="copyLink(inv.code)"><Copy />{{ t('invite.copy') }}</Button>
                     <Button v-if="!inv.revoked && !inv.uses && !isExpired(inv)" variant="ghost" size="sm" class="text-destructive" :disabled="!!busy" @click="revokeInvitation(inv.id)">{{ t('invite.revoke') }}</Button>
                   </li>
+                    <Button v-if="inv.code && !inv.revoked && !inv.uses && !isExpired(inv)" variant="outline" size="sm" :disabled="!!busy" @click="showQr(t('invite.title'), joinUrl(inv.code))"><QrCode />{{ t('qr.show') }}</Button>
                 </ul>
               </CardContent>
             </Card>
