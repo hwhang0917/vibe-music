@@ -66,8 +66,9 @@ the [README](../README.md).
   `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 - **Windows / macOS:** no C toolchain needed (`CGO_ENABLED=0` builds work).
 - **Linux:** Wails needs WebKitGTK and the local player needs ALSA headers
-  (`libasound2-dev`), both via cgo. Ubuntu 24.04 ships WebKitGTK 4.1 only:
-  build with `-tags webkit2_41` (CI sets `GOFLAGS`). See `wails doctor`.
+  (`libasound2-dev`), both via cgo. Ubuntu 24.04 and Arch ship WebKitGTK 4.1
+  only: build with `-tags webkit2_41` (`make build` detects it via pkg-config;
+  CI passes it explicitly). See `wails doctor`.
 
 ## Develop, test, build
 

@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "install:all": "npm install && npm --prefix ../web install",
+    "build:all": "npm run build && npm --prefix ../web run build",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit"

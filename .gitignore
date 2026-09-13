@@ -5,3 +5,4 @@ frontend/dist/*
 web/dist/*
 !web/dist/.gitkeep
 .env
+frontend/package.json.md5

@@ -2,8 +2,8 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "vibe-music",
   "outputfilename": "vibe-music",
-  "frontend:install": "npm install && npm --prefix ../web install",
-  "frontend:build": "npm run build && npm --prefix ../web run build",
+  "frontend:install": "npm run install:all",
+  "frontend:build": "npm run build:all",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {

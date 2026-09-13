@@ -14,8 +14,11 @@ install: ## Install all dependencies (Go modules, Wails CLI, both frontends)
 	npm --prefix frontend install
 	npm --prefix web install
 
+# Ubuntu 24.04 and Arch ship WebKitGTK 4.1 only; wails links 4.0 unless told otherwise.
+WEBKIT_TAGS := $(shell pkg-config --exists webkit2gtk-4.0 2>/dev/null || (pkg-config --exists webkit2gtk-4.1 2>/dev/null && echo -tags webkit2_41))
+
 build: ## Build the app for this machine (both UIs embedded) into build/bin/
-	$(WAILS) build
+	$(WAILS) build -skipbindings $(WEBKIT_TAGS) # bindings under frontend/wailsjs are committed and hand-adjusted, as in CI
 
 build-windows: ## Build both UIs, then cross-compile a CGO-free Windows binary
 	npm --prefix frontend run build
