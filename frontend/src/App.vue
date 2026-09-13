@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
@@ -299,7 +299,9 @@ onUnmounted(() => { stops.forEach((s) => s()); window.clearInterval(poll); windo
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{{ t('source.cancel') }}</AlertDialogCancel>
-          <AlertDialogAction class="bg-destructive text-white hover:bg-destructive/90" @click="confirmNow">{{ t('confirm.remove') }}</AlertDialogAction>
+          <!-- a plain Button, not AlertDialogAction: that one closes the dialog before our
+               click handler runs, which nulls `confirm` and the action is lost -->
+          <Button variant="destructive" @click="confirmNow">{{ t('confirm.remove') }}</Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
