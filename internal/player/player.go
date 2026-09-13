@@ -42,10 +42,10 @@ type QueueItem struct {
 	Votes           int          `json:"votes"`
 	// Mine is set per recipient by the server (the requester's cookie ID must not leak).
 	Mine bool `json:"mine,omitempty"`
-	// rank > 0 means the admin placed this item by hand; ranked items come
-	// first in rank order and votes no longer move them. Unranked requests
-	// below still sort by votes. ponytail: "admin curates the top, guests vote
-	// on the rest"; a full manual mode can replace this if it confuses people.
+	// rank > 0 means the admin pinned this item at slot rank (1-based). Pinned
+	// items keep their slot; everything else sorts by votes, then request time,
+	// around them. Only the moved item is pinned, so guest votes keep working
+	// after the host reorders something.
 	rank  int
 	votes map[string]struct{}
 }
@@ -552,13 +552,9 @@ func (p *Player) Move(itemID string, index int) error {
 	if from < 0 {
 		return ErrNotInQueue
 	}
-	index = max(0, min(len(p.queue)-1, index))
 	it := p.queue[from]
-	rest := append(append([]*QueueItem{}, p.queue[:from]...), p.queue[from+1:]...)
-	p.queue = append(append(append([]*QueueItem{}, rest[:index]...), it), rest[index:]...)
-	for i, q := range p.queue {
-		q.rank = i + 1
-	}
+	it.rank = max(0, min(len(p.queue)-1, index)) + 1
+	p.sortQueue()
 	p.pending = &Event{Type: "queue_moved", Title: it.Track.Title}
 	p.broadcastIfChanged()
 	return nil
@@ -643,11 +639,11 @@ func (p *Player) RemoveGuest(guestID string) {
 		delete(it.votes, guestID)
 		if it.RequestedBy != guestID {
 			kept = append(kept, it)
-	p.cancelSkipIfShort()
 		}
 	}
 	p.queue = kept
 	delete(p.skipVotes, guestID)
+	p.cancelSkipIfShort()
 	p.sortQueue()
 	p.broadcastIfChanged()
 }
@@ -830,20 +826,37 @@ func (p *Player) advance(ctx context.Context) {
 	}
 }
 
+// sortQueue orders unpinned items by votes then request time, then drops each
+// pinned item back into its slot. Pins are renumbered to where they landed so
+// two moves to the same slot cannot leave duplicate ranks behind.
 func (p *Player) sortQueue() {
-	sort.SliceStable(p.queue, func(i, j int) bool {
-		a, b := p.queue[i], p.queue[j]
-		if (a.rank > 0) != (b.rank > 0) {
-			return a.rank > 0 // admin-ranked first
+	var pinned, free []*QueueItem
+	for _, it := range p.queue {
+		if it.rank > 0 {
+			pinned = append(pinned, it)
+		} else {
+			free = append(free, it)
 		}
-		if a.rank > 0 {
-			return a.rank < b.rank
-		}
+	}
+	sort.SliceStable(free, func(i, j int) bool {
+		a, b := free[i], free[j]
 		if va, vb := len(a.votes), len(b.votes); va != vb {
 			return va > vb
 		}
 		return a.RequestedAt.Before(b.RequestedAt)
 	})
+	sort.SliceStable(pinned, func(i, j int) bool { return pinned[i].rank < pinned[j].rank })
+	out := free
+	for _, it := range pinned {
+		i := min(it.rank-1, len(out))
+		out = append(out[:i], append([]*QueueItem{it}, out[i:]...)...)
+	}
+	for i, it := range out {
+		if it.rank > 0 {
+			it.rank = i + 1
+		}
+	}
+	p.queue = out
 }
 
 func (p *Player) skipThreshold() int {
@@ -859,6 +872,9 @@ func (p *Player) snapshot() State {
 		Guests:        p.guests,
 	}
 	s.Sources = p.sourcesLocked()
+	if !p.skipAt.IsZero() {
+		s.SkipAt = p.skipAt.UTC().Format(time.RFC3339Nano)
+	}
 	if p.now.Track != nil {
 		s.NowPlaying = &NowPlaying{
 			Track:       *p.now.Track,
@@ -872,9 +888,6 @@ func (p *Player) snapshot() State {
 		c := *it
 		c.Votes = len(it.votes)
 		s.Queue = append(s.Queue, c)
-	if !p.skipAt.IsZero() {
-		s.SkipAt = p.skipAt.UTC().Format(time.RFC3339Nano)
-	}
 	}
 	return s
 }

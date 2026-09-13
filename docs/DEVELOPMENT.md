@@ -20,8 +20,9 @@ the [README](../README.md).
                                (Web API)   admin window
 ```
 
-- **Core owns the queue** (`internal/player`). Sorted by admin rank, then
-  votes, then request time. The same song can be requested more than once.
+- **Core owns the queue** (`internal/player`). Sorted by votes, then request
+  time; an item the admin moved is pinned to that slot and the rest sort
+  around it. The same song can be requested more than once.
   Skip fires when a configurable share of connected guests votes (default
   50%), after a `SkipGrace` (3 s) countdown during which voters can withdraw.
   The admin can always skip, reorder, remove, seek. Track end is

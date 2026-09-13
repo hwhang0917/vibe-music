@@ -323,7 +323,7 @@ func TestDurationLearnedAtPlayIsBroadcast(t *testing.T) {
 	}
 }
 
-func TestMoveRanksAndVotesBelow(t *testing.T) {
+func TestMovePinsOnlyThatItem(t *testing.T) {
 	p, _ := setup(t)
 	ctx := context.Background()
 	_ = p.Request(ctx, a, g1) // playing
@@ -347,24 +347,29 @@ func TestMoveRanksAndVotesBelow(t *testing.T) {
 		t.Fatal("event must be one-shot")
 	}
 
-	// votes no longer reorder admin-ranked items...
+	// the pinned item keeps its slot...
 	bID := p.State().Queue[1].ID
 	_ = p.Vote(bID, g2.ID)
 	_ = p.Vote(bID, g3.ID)
 	eq(t, queueIDs(p.State()), []string{"c", "b"})
-	// ...but new unranked requests sort by votes below them
+	// ...while everything else still sorts by votes around it
 	d := source.Track{ID: "d", Title: "D", Source: "fake"}
 	e := source.Track{ID: "e", Title: "E", Source: "fake"}
 	_ = p.Request(ctx, d, g1)
 	_ = p.Request(ctx, e, g1)
-	_ = p.Vote(p.State().Queue[3].ID, g2.ID) // e gets a second vote
+	_ = p.Vote(p.State().Queue[3].ID, g2.ID) // e gets a vote
 	eq(t, queueIDs(p.State()), []string{"c", "b", "e", "d"})
+	dID := p.State().Queue[3].ID
+	for _, g := range []Guest{g2, g3, {ID: "g4", Name: "Park"}} {
+		_ = p.Vote(dID, g.ID) // with its requester's vote d has 4, b has 3
+	}
+	eq(t, queueIDs(p.State()), []string{"c", "d", "b", "e"})
 
 	if err := p.Move("nope", 0); err != ErrNotInQueue {
 		t.Fatal("unknown item")
 	}
 	_ = p.Move(cID, 99) // clamps to the end
-	eq(t, queueIDs(p.State()), []string{"b", "e", "d", "c"})
+	eq(t, queueIDs(p.State()), []string{"d", "b", "e", "c"})
 }
 
 func TestSeekBroadcastsEvent(t *testing.T) {
